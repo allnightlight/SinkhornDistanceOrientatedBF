@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import sys
+from datetime import datetime, timedelta
 
 
 class SinkBF_gauss(nn.Module):
@@ -102,6 +103,7 @@ def run_training(sbf, data_generator, optimizer, Nepoch, Nbatch, Nwup, Nhrzn,
     Nitr = Ntrain//Nbatch
     Nx, Nw, Ny = sbf.Nx, sbf.Nw, sbf.Ny
 
+    t_bgn = datetime.now()
     for epoch in range(Nepoch):
         loss_hist = []
         for k1 in range(Nitr):
@@ -128,6 +130,80 @@ def run_training(sbf, data_generator, optimizer, Nepoch, Nbatch, Nwup, Nhrzn,
             optimizer.step()
 
         resid_avg, reg_term_avg, loss_avg = np.mean(loss_hist, axis=0)
-        sys.stdout.write('epoch %04d resid %8.2e reg term %8.2e loss %8.2e\n' %
-            (epoch+1, resid_avg, reg_term_avg, loss_avg))
+        sys.stdout.write('%s epoch %04d resid %8.2e reg term %8.2e loss %8.2e\n' %
+            (datetime.now() - t_bgn, epoch+1, resid_avg, reg_term_avg, loss_avg))
     
+
+class SinkBF_binary(nn.Module):
+    def __init__(self, Nx, Nw, Ny):
+        super(SinkBF_binary, self).__init__()
+        self.Nx = Nx
+        self.Nw = Nw
+        self.Ny = Ny
+
+        self.q_x_y = nn.Sequential(nn.Linear(Ny, Nx), nn.Tanh(),)
+        self.p_y_x = nn.Sequential(nn.Linear(Nx, Nx), nn.Tanh(),
+            nn.Linear(Nx, Ny),)
+        self.logit_q_w_xy = nn.Sequential(nn.Linear(Nx+Ny, Nw), nn.Tanh(),
+            nn.Linear(Nw, Nw),)
+        self.f_x_xw = nn.GRU(Nw, Nx, 1) # num_layers = 1
+
+    def forward(self, _Y0, Nhrzn):
+# _Y0: (Nwup+1, *, Ny)
+        Nx, Nw = self.Nx, self.Nw
+
+        assert _Y0.shape[0] >= 1, "Y0 is not allowed to be empty."
+        Nwup = _Y0.shape[0] - 1
+        Nbatch = _Y0.shape[1]
+
+        _x = self.q_x_y(_Y0[0,:]) # (*, Nx)
+        X = [_x,]
+        logit_Q_w = []
+        for t in range(1, Nwup+1+Nhrzn):
+            if t <= Nwup:
+                _logit_q_w = self.logit_q_w_xy(torch.cat((_x, _Y0[t,:]), \
+                    dim=1)) # (*, Nw)
+                _w = torch.tanh(_logit_q_w/2) # (*, Nw)
+                logit_Q_w.append(_logit_q_w)
+            else:
+                _w = torch.ones(Nbatch, Nw)
+                _w[torch.rand(Nbatch, Nw) >= 0.5] = -1
+            _x = self.f_x_xw(_w.unsqueeze(0), _x.unsqueeze(0))[1][0,:] # (*, Nx)
+            X.append(_x)
+        _X = torch.stack(X, dim = 0) # (Nwup+1+Nhrzn, *, Nx)
+        _logit_Q_w = torch.stack(logit_Q_w, dim = 0) # (Nwup, *, Nw)
+        _Yhat = self.p_y_x(_X) # (Nwup+1+Nhrzn, *, Ny)
+
+        return _X, _logit_Q_w, _Yhat
+
+
+def run_training_binary(sbf_binary, data_generator, optimizer, Nepoch, Nbatch, \
+    Nwup, Nhrzn, reg_param):
+    Ntrain = data_generator.Ntrain
+    Nitr = Ntrain//Nbatch
+    Nx, Nw, Ny = sbf_binary.Nx, sbf_binary.Nw, sbf_binary.Ny
+
+    t_bgn = datetime.now()
+    for epoch in range(Nepoch):
+        loss_hist = []
+        for k1 in range(Nitr):
+            Ybatch = data_generator.batch(Nbatch, Nwup+1+Nhrzn)
+            _Y0batch = torch.tensor(Ybatch[:Nwup+1,:]) # (Nwup+1, *, Ny)
+            _Ybatch = torch.tensor(Ybatch) # (Nwup+1+Nhrzn, *, Ny)
+
+            _Xbatch, _logit_Q_w_batch, _Yhat_batch = sbf_binary(_Y0batch, Nhrzn)
+            _resid = torch.mean((_Yhat_batch - _Ybatch)**2)
+
+            _discrepancy_q = torch.mean(torch.tanh(torch.abs(_logit_Q_w_batch)/2))
+
+            _loss = _resid + reg_param * _discrepancy_q
+            loss_hist.append((float(_resid), float(_discrepancy_q), 
+                float(_loss)))
+
+            sbf_binary.zero_grad()
+            _loss.backward()
+            optimizer.step()
+
+        resid_avg, reg_term_avg, loss_avg = np.mean(loss_hist, axis=0)
+        sys.stdout.write('%s epoch %04d resid %8.2e reg term %8.2e loss %8.2e\r' %
+            (datetime.now() - t_bgn, epoch+1, resid_avg, reg_term_avg, loss_avg))

@@ -1,6 +1,32 @@
 from scipy.integrate import odeint
 import numpy as np
 
+class GeneratorFromSinCurve():
+    def __init__(self, T = 200, dt = 0.1, test_ratio = 0.1):
+
+        t = np.arange(0, T, dt)
+        omg = 2 * np.pi 
+        X = np.sin(omg * t).reshape((-1,1)).astype(np.float32)
+
+        self.X = ( X - np.mean(X, axis=0) ) / np.std(X, axis=0)
+        self.Ntest = int(len(t) * test_ratio)
+        self.Ntrain = len(t) - self.Ntest
+        self.Nx = 1
+
+    def batch(self, Nbatch, N):
+        idx = np.random.randint(low=0, high=self.Ntrain-N, size=(1,Nbatch)) + \
+            np.arange(N).reshape(-1,1) # (N, Nbatch)
+        Xbatch = self.X[idx,:] # (N, Nbatch, 3)
+        return Xbatch
+
+    def test(self, N):
+        Nbatch = self.Ntest - N
+        idx = np.random.randint(low=self.Ntrain, high=self.Ntrain+self.Ntest-N, 
+            size=(1,Nbatch)) + np.arange(N).reshape(-1,1) # (N, Nbatch)
+        Xbatch = self.X[idx,:] # (N, Nbatch, 3)
+        return Xbatch, Nbatch
+
+
 class GeneratorFromLorenzAttractor():
     def __init__(self, T = 200, dt = 0.1, test_ratio = 0.1):
         def f(x, t):

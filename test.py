@@ -53,7 +53,7 @@ class TestCases(unittest.TestCase):
                 max_itr = 2**5)
 
     def test_005(self):
-        Nx, Nw, Ny = 2**3, 2**3, 3
+        Nx, Nw, Ny = 2**3, 2**5, 3
         sbf = SinkBF_gauss(Nx, Nw, Ny)
 
         optimizer = torch.optim.Adam(sbf.parameters())
@@ -64,6 +64,20 @@ class TestCases(unittest.TestCase):
         reg_param = 0.1
 
         run_training(sbf, data_generator, optimizer, Nepoch, Nbatch,
+            Nwup, Nhrzn, reg_param)
+
+    def test_006(self):
+        Nx, Nw, Ny = 2**3, 2**5, 3
+        sbf = SinkBF_binary(Nx, Nw, Ny)
+
+        optimizer = torch.optim.Adam(sbf.parameters())
+
+        data_generator = GeneratorFromLorenzAttractor()
+
+        Nepoch, Nbatch, Nwup, Nhrzn = 2**7, 2**6, 2**3, 2**6
+        reg_param = 0.1
+
+        run_training_binary(sbf, data_generator, optimizer, Nepoch, Nbatch,
             Nwup, Nhrzn, reg_param)
 
         
