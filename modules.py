@@ -5,9 +5,9 @@ import numpy as np
 import sys
 
 
-class SinkBF(nn.Module):
+class SinkBF_gauss(nn.Module):
     def __init__(self, Nx, Nw, Ny):
-        super(SinkBF, self).__init__()
+        super(SinkBF_gauss, self).__init__()
         self.Nx = Nx
         self.Nw = Nw
         self.Ny = Ny

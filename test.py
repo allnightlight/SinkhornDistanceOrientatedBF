@@ -8,11 +8,11 @@ class TestCases(unittest.TestCase):
     
     def test_001(self):
         Nx, Nw, Ny = 2**3, 2**2, 2**4
-        sbf = SinkBF(Nx, Nw, Ny)
+        sbf = SinkBF_gauss(Nx, Nw, Ny)
 
     def test_002(self):
         Nx, Nw, Ny = 2**3, 2**2, 2**4
-        sbf = SinkBF(Nx, Nw, Ny)
+        sbf = SinkBF_gauss(Nx, Nw, Ny)
 
         Nwup, Nhrzn, Nbatch = 2**3, 2**4, 2**5
 
@@ -54,7 +54,7 @@ class TestCases(unittest.TestCase):
 
     def test_005(self):
         Nx, Nw, Ny = 2**3, 2**3, 3
-        sbf = SinkBF(Nx, Nw, Ny)
+        sbf = SinkBF_gauss(Nx, Nw, Ny)
 
         optimizer = torch.optim.Adam(sbf.parameters())
 
