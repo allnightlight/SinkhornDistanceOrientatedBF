@@ -67,7 +67,7 @@ class TestCases(unittest.TestCase):
             Nwup, Nhrzn, reg_param)
 
     def test_006(self):
-        Nx, Nw, Ny = 2**3, 2**5, 3
+        Nx, Nw, Ny = 2**5, 2**3, 3
         sbf = SinkBF_binary(Nx, Nw, Ny)
 
         optimizer = torch.optim.Adam(sbf.parameters())
@@ -75,10 +75,17 @@ class TestCases(unittest.TestCase):
         data_generator = GeneratorFromLorenzAttractor()
 
         Nepoch, Nbatch, Nwup, Nhrzn = 2**7, 2**6, 2**3, 2**6
-        reg_param = 0.1
+        reg_param = 1.0
 
         run_training_binary(sbf, data_generator, optimizer, Nepoch, Nbatch,
             Nwup, Nhrzn, reg_param)
+
+    def test_007(self):
+        data_generator = GeneratorFromRandomWalk()
+        Xbatch = data_generator.batch(3, 2**5)
+
+        assert Xbatch.shape == (2**5, 3, 1)
+        assert Xbatch[0,0,0].dtype == np.float32
 
         
 if __name__ == "__main__":
