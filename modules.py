@@ -166,8 +166,10 @@ class SinkBF_binary(nn.Module):
                 _w = torch.tanh(_logit_q_w/2) # (*, Nw)
                 logit_Q_w.append(_logit_q_w)
             else:
-                _w = torch.ones(Nbatch, Nw)
-                _w[torch.rand(Nbatch, Nw) >= 0.5] = -1
+                if self.training:
+                    _w = torch.zeros(Nbatch, Nw) 
+                else:
+                    _w = torch.bernoulli(torch.ones(Nbatch, Nw) * 0.5)
             _x = self.f_x_xw(_w.unsqueeze(0), _x.unsqueeze(0))[1][0,:] # (*, Nx)
             X.append(_x)
         _X = torch.stack(X, dim = 0) # (Nwup+1+Nhrzn, *, Nx)
