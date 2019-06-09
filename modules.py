@@ -169,7 +169,7 @@ class SinkBF_binary(nn.Module):
                 if self.training:
                     _w = torch.zeros(Nbatch, Nw) 
                 else:
-                    _w = torch.bernoulli(torch.ones(Nbatch, Nw) * 0.5)
+                    _w = 2 * torch.bernoulli(torch.ones(Nbatch, Nw) * 0.5) - 1
             _x = self.f_x_xw(_w.unsqueeze(0), _x.unsqueeze(0))[1][0,:] # (*, Nx)
             X.append(_x)
         _X = torch.stack(X, dim = 0) # (Nwup+1+Nhrzn, *, Nx)
