@@ -36,7 +36,10 @@ class SinkBF_gauss(nn.Module):
                 _w = self.q_w_xy(torch.cat((_x, _Y0[t,:]), dim=1)) # (*, Nw)
                 W.append(_w)
             else:
-                _w = torch.randn(Nbatch, Nw)
+                if self.training:
+                    _w = torch.zeros(Nbatch, Nw)
+                else:
+                    _w = torch.randn(Nbatch, Nw)
             _x = self.f_x_xw(_w.unsqueeze(0), _x.unsqueeze(0))[1][0,:] # (*, Nx)
             X.append(_x)
         _X = torch.stack(X, dim = 0) # (Nwup+1+Nhrzn, *, Nx)
