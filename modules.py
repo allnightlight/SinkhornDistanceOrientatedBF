@@ -5,6 +5,7 @@ import numpy as np
 import sys
 from datetime import datetime, timedelta
 
+beta_sampler = torch.distributions.Beta(2., 2.)
 
 class SinkBF_gauss(nn.Module):
     def __init__(self, Nx, Nw, Ny):
@@ -96,7 +97,7 @@ def measure_distance(_X0, _X1, tol = 1e-4, eps_given = 1e-2, max_itr = 2**5):
         
     _dist01, cnt01 = robust_sinkhorn_iteration(_M01, _p.unsqueeze(1), 
         _q.unsqueeze(0), _eps, tol, max_itr=max_itr)
-    
+
     return _dist01, cnt01
 
 
@@ -122,7 +123,8 @@ def run_training(sbf, data_generator, optimizer, Nepoch, Nbatch, Nwup, Nhrzn,
             _reg_term, _ = measure_distance(_X0, torch.randn(Nbatch, Nx))
 
             for k1 in range(Nwup):
-                _reg_term += measure_distance(_X0, torch.randn(Nbatch, Nx))[0]
+                _reg_term += measure_distance(_Wbatch[k1,:], 
+                    torch.randn(Nbatch, Nw))[0]
             _reg_term /= (Nwup+1)
             
             _loss = _resid + reg_param * _reg_term
@@ -137,14 +139,14 @@ def run_training(sbf, data_generator, optimizer, Nepoch, Nbatch, Nwup, Nhrzn,
             (datetime.now() - t_bgn, epoch+1, resid_avg, reg_term_avg, loss_avg))
     
 
-class SinkBF_binary(nn.Module):
+class SinkBF_beta(nn.Module):
     def __init__(self, Nx, Nw, Ny):
-        super(SinkBF_binary, self).__init__()
+        super(SinkBF_beta, self).__init__()
         self.Nx = Nx
         self.Nw = Nw
         self.Ny = Ny
 
-        self.q_x_y = nn.Sequential(nn.Linear(Ny, Nx), nn.Tanh(),)
+        self.logit_q_x_y = nn.Sequential(nn.Linear(Ny, Nx), nn.Tanh(),)
         self.p_y_x = nn.Sequential(nn.Linear(Nx, Nx), nn.Tanh(),
             nn.Linear(Nx, Ny),)
         self.logit_q_w_xy = nn.Sequential(nn.Linear(Nx+Ny, Nw), nn.Tanh(),
@@ -159,34 +161,35 @@ class SinkBF_binary(nn.Module):
         Nwup = _Y0.shape[0] - 1
         Nbatch = _Y0.shape[1]
 
-        _x = self.q_x_y(_Y0[0,:]) # (*, Nx)
+
+        _x = torch.tanh(self.logit_q_x_y(_Y0[0,:])/2) # (*, Nx)
         X = [_x,]
-        logit_Q_w = []
+        W = []
         for t in range(1, Nwup+1+Nhrzn):
             if t <= Nwup:
                 _logit_q_w = self.logit_q_w_xy(torch.cat((_x, _Y0[t,:]), \
                     dim=1)) # (*, Nw)
                 _w = torch.tanh(_logit_q_w/2) # (*, Nw)
-                logit_Q_w.append(_logit_q_w)
+                W.append(_w)
             else:
                 if self.training:
                     _w = torch.zeros(Nbatch, Nw) 
                 else:
-                    _w = 2 * torch.bernoulli(torch.ones(Nbatch, Nw) * 0.5) - 1
+                    _w = 2 * beta_sampler.sample((Nbatch, Nw)) - 1
             _x = self.f_x_xw(_w.unsqueeze(0), _x.unsqueeze(0))[1][0,:] # (*, Nx)
             X.append(_x)
         _X = torch.stack(X, dim = 0) # (Nwup+1+Nhrzn, *, Nx)
-        _logit_Q_w = torch.stack(logit_Q_w, dim = 0) # (Nwup, *, Nw)
+        _W = torch.stack(W, dim = 0) # (Nwup, *, Nw)
         _Yhat = self.p_y_x(_X) # (Nwup+1+Nhrzn, *, Ny)
 
-        return _X, _logit_Q_w, _Yhat
+        return _X, _W, _Yhat
 
 
-def run_training_binary(sbf_binary, data_generator, optimizer, Nepoch, Nbatch, \
+def run_training_beta(sbf_beta, data_generator, optimizer, Nepoch, Nbatch, \
     Nwup, Nhrzn, reg_param):
     Ntrain = data_generator.Ntrain
     Nitr = Ntrain//Nbatch
-    Nx, Nw, Ny = sbf_binary.Nx, sbf_binary.Nw, sbf_binary.Ny
+    Nx, Nw, Ny = sbf_beta.Nx, sbf_beta.Nw, sbf_beta.Ny
 
     t_bgn = datetime.now()
     for epoch in range(Nepoch):
@@ -196,16 +199,23 @@ def run_training_binary(sbf_binary, data_generator, optimizer, Nepoch, Nbatch, \
             _Y0batch = torch.tensor(Ybatch[:Nwup+1,:]) # (Nwup+1, *, Ny)
             _Ybatch = torch.tensor(Ybatch) # (Nwup+1+Nhrzn, *, Ny)
 
-            _Xbatch, _logit_Q_w_batch, _Yhat_batch = sbf_binary(_Y0batch, Nhrzn)
+            _Xbatch, _W, _Yhat_batch = sbf_beta(_Y0batch, Nhrzn)
             _resid = torch.mean((_Yhat_batch - _Ybatch)**2)
 
-            _discrepancy_q = torch.mean(torch.tanh(torch.abs(_logit_Q_w_batch)/2))
+            _X0 = _Xbatch[0,:] # (*, Nx)
+            _discrepancy_q, _ = measure_distance(_X0, 
+                2*beta_sampler.sample((Nbatch, Nx))-1, eps_given = 0.1)
+
+            for k1 in range(Nwup):
+                _discrepancy_q += measure_distance(_W[k1,:], 
+                    2*beta_sampler.sample((Nbatch, Nw))-1, eps_given = 0.1)[0]
+            _discrepancy_q /= (Nwup+1)
 
             _loss = _resid + reg_param * _discrepancy_q
             loss_hist.append((float(_resid), float(_discrepancy_q), 
                 float(_loss)))
 
-            sbf_binary.zero_grad()
+            sbf_beta.zero_grad()
             _loss.backward()
             optimizer.step()
 

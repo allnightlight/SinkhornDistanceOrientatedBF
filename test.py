@@ -68,7 +68,7 @@ class TestCases(unittest.TestCase):
 
     def test_006(self):
         Nx, Nw, Ny = 2**5, 2**3, 3
-        sbf = SinkBF_binary(Nx, Nw, Ny)
+        sbf = SinkBF_beta(Nx, Nw, Ny)
 
         optimizer = torch.optim.Adam(sbf.parameters())
 
@@ -77,7 +77,7 @@ class TestCases(unittest.TestCase):
         Nepoch, Nbatch, Nwup, Nhrzn = 2**7, 2**6, 2**3, 2**6
         reg_param = 1.0
 
-        run_training_binary(sbf, data_generator, optimizer, Nepoch, Nbatch,
+        run_training_beta(sbf, data_generator, optimizer, Nepoch, Nbatch,
             Nwup, Nhrzn, reg_param)
 
     def test_007(self):
