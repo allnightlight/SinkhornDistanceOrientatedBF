@@ -85,10 +85,15 @@ def robust_sinkhorn_iteration(_M, _p, _q, _eps, tol, max_itr):
     _dist = torch.sum(_P * _M)
     return _dist, cnt
 
-def measure_distance(_X0, _X1, tol = 1e-4, eps_given = 1e-2, max_itr = 2**5):
+def measure_distance(_X0, _X1, tol = 1e-4, eps_given = 1e-2, max_itr = 2**5, 
+    norm_p = 1):
     # _X0: (*, Nx), _X1: (*, Nx)
-        
-    _M01 = torch.mean((_X0.unsqueeze(1) - _X1)**2, dim=2)
+
+    assert norm_p >=1 and isinstance(norm_p, int)
+    if norm_p == 1:
+        _M01 = torch.mean(torch.abs(_X0.unsqueeze(1) - _X1), dim=2)
+    else:
+        _M01 = torch.mean((_X0.unsqueeze(1) - _X1)**p, dim=2)
 
     _p = 1/_X0.shape[0] * torch.ones(_X0.shape[0])
     _q = 1/_X1.shape[0] * torch.ones(_X1.shape[0])
@@ -101,8 +106,8 @@ def measure_distance(_X0, _X1, tol = 1e-4, eps_given = 1e-2, max_itr = 2**5):
     return _dist01, cnt01
 
 
-def run_training(sbf, data_generator, optimizer, Nepoch, Nbatch, Nwup, Nhrzn,
-    reg_param):
+def run_training_gauss(sbf, data_generator, optimizer, Nepoch, Nbatch, Nwup, Nhrzn,
+    reg_param, eps_given = 1e-2):
     Ntrain = data_generator.Ntrain
     Nitr = Ntrain//Nbatch
     Nx, Nw, Ny = sbf.Nx, sbf.Nw, sbf.Ny
@@ -120,11 +125,13 @@ def run_training(sbf, data_generator, optimizer, Nepoch, Nbatch, Nwup, Nhrzn,
             _resid = torch.mean((_Yhat_batch - _Ybatch)**2)
 
             _X0 = _Xbatch[0,:] # (*, Nx)
-            _reg_term, _ = measure_distance(_X0, torch.randn(Nbatch, Nx))
+            _reg_term, _ = measure_distance(_X0, torch.randn(Nbatch, Nx), 
+                eps_given = eps_given)
 
             for k1 in range(Nwup):
                 _reg_term += measure_distance(_Wbatch[k1,:], 
-                    torch.randn(Nbatch, Nw))[0]
+                    torch.randn(Nbatch, Nw),
+                    eps_given = eps_given)[0]
             _reg_term /= (Nwup+1)
             
             _loss = _resid + reg_param * _reg_term
@@ -186,7 +193,7 @@ class SinkBF_beta(nn.Module):
 
 
 def run_training_beta(sbf_beta, data_generator, optimizer, Nepoch, Nbatch, \
-    Nwup, Nhrzn, reg_param):
+    Nwup, Nhrzn, reg_param, eps_given = 1e-2):
     Ntrain = data_generator.Ntrain
     Nitr = Ntrain//Nbatch
     Nx, Nw, Ny = sbf_beta.Nx, sbf_beta.Nw, sbf_beta.Ny
@@ -204,11 +211,12 @@ def run_training_beta(sbf_beta, data_generator, optimizer, Nepoch, Nbatch, \
 
             _X0 = _Xbatch[0,:] # (*, Nx)
             _discrepancy_q, _ = measure_distance(_X0, 
-                2*beta_sampler.sample((Nbatch, Nx))-1, eps_given = 0.1)
+                2*beta_sampler.sample((Nbatch, Nx))-1, eps_given = eps_given)
 
             for k1 in range(Nwup):
                 _discrepancy_q += measure_distance(_W[k1,:], 
-                    2*beta_sampler.sample((Nbatch, Nw))-1, eps_given = 0.1)[0]
+                    2*beta_sampler.sample((Nbatch, Nw))-1, 
+                    eps_given = eps_given)[0]
             _discrepancy_q /= (Nwup+1)
 
             _loss = _resid + reg_param * _discrepancy_q

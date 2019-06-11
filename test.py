@@ -63,7 +63,7 @@ class TestCases(unittest.TestCase):
         Nepoch, Nbatch, Nwup, Nhrzn = 2**0, 2**6, 2**3, 2**6
         reg_param = 0.1
 
-        run_training(sbf, data_generator, optimizer, Nepoch, Nbatch,
+        run_training_gauss(sbf, data_generator, optimizer, Nepoch, Nbatch,
             Nwup, Nhrzn, reg_param)
 
     def test_006(self):
@@ -74,7 +74,7 @@ class TestCases(unittest.TestCase):
 
         data_generator = GeneratorFromLorenzAttractor()
 
-        Nepoch, Nbatch, Nwup, Nhrzn = 2**7, 2**6, 2**3, 2**6
+        Nepoch, Nbatch, Nwup, Nhrzn = 2**0, 2**6, 2**3, 2**6
         reg_param = 1.0
 
         run_training_beta(sbf, data_generator, optimizer, Nepoch, Nbatch,
