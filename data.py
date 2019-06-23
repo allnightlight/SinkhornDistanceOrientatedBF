@@ -60,7 +60,7 @@ class GeneratorFromSinCurve():
 
 
 class GeneratorFromLorenzAttractor():
-    def __init__(self, T = 200, dt = 0.1, test_ratio = 0.1):
+    def __init__(self, T = 1000, dt = 0.1, test_ratio = 0.1):
         def f(x, t):
             p,r,b = 10,28,8/3
             dxdt = [

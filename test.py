@@ -87,6 +87,51 @@ class TestCases(unittest.TestCase):
         assert Xbatch.shape == (2**5, 3, 1)
         assert Xbatch[0,0,0].dtype == np.float32
 
+    def test_008(self):
+        Nx, Nw, Ny = 2**1, 2**0, 3
+        sbf = SinkBF_gauss(Nx, Nw, Ny)
+
+        optimizer = torch.optim.Adam(sbf.parameters())
+
+        data_generator = GeneratorFromLorenzAttractor()
+
+        Nepoch, Nbatch, Nwup, Nhrzn = 2**0, 2**6, 2**3, 2**6
+        reg_param = 1.0
+
+        loss_hist = []
+        run_training_002(sbf, data_generator, optimizer, Nepoch, Nbatch,
+            Nwup, Nhrzn, reg_param, loss_hist = loss_hist)
+
+    def test_009(self):
+        Nx, Nw, Ny = 2**1, 2**0, 3
+        sbf = SinkBF_gauss(Nx, Nw, Ny)
+
+        optimizer = torch.optim.Adam(sbf.parameters())
+
+        data_generator = GeneratorFromLorenzAttractor()
+
+        Nepoch, Nbatch, Nwup, Nhrzn = 2**0, 2**6, 2**3, 2**6
+        reg_param = 1.0
+
+        loss_hist = []
+        run_training_003(sbf, data_generator, optimizer, Nepoch, Nbatch,
+            Nwup, Nhrzn, reg_param, loss_hist = loss_hist)
+
+    def test_010(self):
+        Nx, Nw, Ny = 2**1, 2**0, 3
+        sbf = SinkBF_moving_average(Nx, Nw, Ny)
+
+        optimizer = torch.optim.Adam(sbf.parameters())
+
+        data_generator = GeneratorFromLorenzAttractor()
+
+        Nepoch, Nbatch, Nwup, Nhrzn = 2**0, 2**6, 2**3, 2**6
+        reg_param = 1.0
+
+        loss_hist = []
+        run_training_002(sbf, data_generator, optimizer, Nepoch, Nbatch,
+            Nwup, Nhrzn, reg_param, loss_hist = loss_hist)
+        
         
 if __name__ == "__main__":
     unittest.main()
